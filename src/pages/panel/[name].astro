@@ -1,0 +1,18 @@
+---
+import { getEntry, getCollection } from "astro:content";
+
+const { name } = Astro.params;
+if (!name) throw new Error("Missing slug");
+
+const panel = await getEntry("panels", name);
+if (!panel) throw new Error(`Panel not found: ${name}`);
+
+export async function getStaticPaths() {
+  const panels = await getCollection("panels"); // TS now knows type of panels
+  return panels.map((panel) => ({
+    params: { name: panel.id }, // or panel.id
+  }));
+}
+---
+
+<h1>{panel.data.name}</h1>
