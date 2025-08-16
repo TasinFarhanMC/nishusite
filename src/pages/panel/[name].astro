@@ -8,9 +8,9 @@ const panel = await getEntry("panels", name);
 if (!panel) throw new Error(`Panel not found: ${name}`);
 
 export async function getStaticPaths() {
-  const panels = await getCollection("panels"); // TS now knows type of panels
+  const panels = await getCollection("panels");
   return panels.map((panel) => ({
-    params: { name: panel.id }, // or panel.id
+    params: { name: panel.slug },
   }));
 }
 ---
