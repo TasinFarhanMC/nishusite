@@ -1,10 +1,22 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { getCollection } from "astro:content";
+import { panelMap } from "../libs/panels";
 
-const panels = await getCollection("panels");
+// Convert the panel map into an array of [key, panel] pairs
+const panels = Object.entries(panelMap);
 ---
 
 <Layout>
-  {panels.map((panel) => <div>{panel.data.name}</div>)}
+  <h1>Available Panels</h1>
+  <ul>
+    {
+      panels.map(([key, panel]) => (
+        <li>
+          <a href={`/products/${key}`}>
+            {panel.name} - ${panel.price}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
 </Layout>
