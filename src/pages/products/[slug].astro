@@ -1,10 +1,10 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { panelMap } from "../../libs/panels";
+import { panel_map } from "../../libs/panels";
 
-// 1. Generate static paths from panelMap keys
+// 1. Generate static paths from panel_map keys
 export async function getStaticPaths() {
-  return Object.entries(panelMap).map(([key, panel]) => ({
+  return Object.entries(panel_map).map(([key, panel]) => ({
     params: { slug: key }, // slug will be the hash
     props: { panel },
   }));

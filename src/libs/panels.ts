@@ -19,7 +19,7 @@ function hashStringToHex(str: string): string {
 }
 
 // Auto-generate the map using the panel name as hash
-export const panelMap: Record<string, Panel> = panels.reduce((acc, panel) => {
+export const panel_map: Record<string, Panel> = panels.reduce((acc, panel) => {
   const key = hashStringToHex(panel.name);
   acc[key] = panel;
   return acc;
