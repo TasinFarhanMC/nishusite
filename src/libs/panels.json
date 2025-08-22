@@ -1,0 +1,33 @@
+{
+  "0cf458aa": {
+    "watt": 50,
+    "battary": 12,
+    "panel_cable": 10,
+    "wiring_cable": 15,
+    "light": 2,
+    "charger": 1,
+    "structure": "product",
+    "hour": 5,
+    "extra_hour": 2,
+    "dc_fan_small": 0,
+    "dc_fan_table": 1,
+    "dc_fan_stand": 0,
+    "price": 4200
+  },
+  "4c8cb932": {
+    "watt": 100,
+    "battary": 24,
+    "panel_cable": 15,
+    "wiring_cable": 20,
+    "light": 4,
+    "charger": 1,
+    "structure": "product",
+    "hour": 6,
+    "extra_hour": 3,
+    "dc_fan_small": 1,
+    "dc_fan_table": 0,
+    "dc_fan_stand": 0,
+    "price": 7800
+  }
+}
+

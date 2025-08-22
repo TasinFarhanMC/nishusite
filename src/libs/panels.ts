@@ -1,26 +1,26 @@
 export type Panel = {
-  name: string;
+  watt: number;
+  battary: number;
+  panel_cable: number;
+  wiring_cable: number;
+  light: number;
+  charger: number;
+  structure: string;
+  hour: number;
+  extra_hour: number;
+  dc_fan_small: number;
+  dc_fan_table: number;
+  dc_fan_stand: number;
   price: number;
 };
 
-export const panels: Panel[] = [
-  { name: 'Basic', price: 100 },
-  { name: 'Pro', price: 200 },
-];
+const url =
+  "https://mayhiqsvljlyvismbpio.supabase.co/storage/v1/object/public/Nishsite/panels.json";
 
-function hashStringToHex(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0; // Convert to 32-bit integer
-  }
-  // Convert to positive hex
-  return (hash >>> 0).toString(16).padStart(8, '0');
+
+export async function fetchPanels() {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+  const data = await res.json();
+  return data as Record<string, Panel>;
 }
-
-// Auto-generate the map using the panel name as hash
-export const panel_map: Record<string, Panel> = panels.reduce((acc, panel) => {
-  const key = hashStringToHex(panel.name);
-  acc[key] = panel;
-  return acc;
-}, {} as Record<string, Panel>);

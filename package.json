@@ -12,7 +12,9 @@
 	},
 	"dependencies": {
 		"@astrojs/cloudflare": "^12.6.3",
-		"astro": "^5.12.9"
+		"@astrojs/svelte": "^7.1.0",
+		"astro": "^5.12.9",
+		"svelte": "^5.38.2"
 	},
 	"devDependencies": {
 		"@eslint/css": "^0.10.0",
