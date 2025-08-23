@@ -1,0 +1,69 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout>
+  <h1>Admin AWS Credentials Viewer</h1>
+
+  <div>
+    <input type="file" id="file-input" />
+    <input type="password" id="password" placeholder="Enter admin password" />
+    <button id="upload-btn">Decrypt & Show Credentials</button>
+  </div>
+
+  <div
+    id="creds-display"
+    style="margin-top: 1rem; background: #f0f0f0; padding: 1rem;"
+  >
+  </div>
+
+  <script>
+    import { decrypt } from "../assets/crypto.js"; // your decrypt function
+    const accessKeyId = "ENCRYPTED_ACCESS_KEY";
+    const encryptedSecretAccessKey =
+      "X44T7YNL3GBevZHBUkgGpyD24NtPc27fKeG5fKwU9M7VG/rZkkw0iZgiIwSIH2Tv";
+
+    const fileInput = document.getElementById("file-input");
+    const passwordInput = document.getElementById(
+      "password",
+    ) as HTMLInputElement;
+    const uploadBtn = document.getElementById("upload-btn");
+    const credsDisplay = document.getElementById("creds-display");
+
+    async function getDecryptedCredentials(password: string) {
+      try {
+        const secretAccessKey = await decrypt(
+          encryptedSecretAccessKey,
+          password,
+        );
+        return { accessKeyId, secretAccessKey };
+      } catch (e) {
+        credsDisplay.innerHTML =
+          "<p style='color:red'>Wrong password or corrupted data</p>";
+        return null;
+      }
+    }
+
+    async function uploadFile(file, password) {
+      // This function is commented out for now
+      // const s3 = await createS3Client(password);
+      // await s3.send(new PutObjectCommand({ Bucket: "my-admin-bucket", Key: file.name, Body: file }));
+    }
+
+    uploadBtn.addEventListener("click", async () => {
+      const password = passwordInput.value;
+      const creds = await getDecryptedCredentials(password);
+      if (!creds) return;
+
+      // Display decrypted credentials as HTML
+      credsDisplay.innerHTML = `
+        <h3>Decrypted AWS Credentials:</h3>
+        <p><strong>Access Key ID:</strong> ${creds.accessKeyId}</p>
+        <p><strong>Secret Access Key:</strong> ${creds.secretAccessKey}</p>
+      `;
+
+      // Upload is currently commented out
+      // if (fileInput.files?.length) await uploadFile(fileInput.files[0], password);
+    });
+  </script>
+</Layout>
