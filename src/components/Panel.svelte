@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Panel } from "../libs/panels";
-  import { fetchPanels } from "../libs/panels";
+  import { fetchPanels, type Panel } from "../assets/panels";
 
   let panel: Panel | null = null;
   let error: string | null = null;
