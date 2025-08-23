@@ -1,6 +1,6 @@
 export type Panel = {
   watt: number;
-  battary: number;
+  battery: number;
   panel_cable: number;
   wiring_cable: number;
   light: number;
@@ -18,9 +18,11 @@ const url =
   "https://mayhiqsvljlyvismbpio.supabase.co/storage/v1/object/public/Nishsite/panels.json";
 
 
-export async function fetchPanels() {
+export async function fetchPanels(): Promise<Record<string, Panel>> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
-  const data = await res.json();
-  return data as Record<string, Panel>;
+  if (!res.ok) throw new Error(`Failed to fetch panels: ${res.status}`);
+  const data = (await res.json()) as Record<string, Panel>;
+  localStorage.setItem("panels", JSON.stringify(data));
+
+  return data;
 }

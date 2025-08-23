@@ -17,6 +17,7 @@
 		"svelte": "^5.38.2"
 	},
 	"devDependencies": {
+		"@aws-sdk/client-s3": "^3.873.0",
 		"@eslint/css": "^0.10.0",
 		"@eslint/js": "^9.33.0",
 		"@eslint/markdown": "^7.1.0",
