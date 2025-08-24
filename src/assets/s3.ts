@@ -1,35 +1,48 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { decrypt } from "./crypto";
+import type { AwsCredentialIdentity } from "@aws-sdk/types";
 
-const accessKeyId = "c09c63ca3621ca120f93214548025052";
-const encryptedSecretAccessKey =
-  "G5uJf6KFvpHdxOg9I2WRUwSEJgCNJBwsk29owYLDlWypJ/I9Tk7ag7ho0qb+NJmgX9NQHowHwqOnOhYSMu44wexiiuBnB3QLxvBcVm6n0fhJtVVHNRNPrAxZxnAbgDU/ZND7i4Tz05RVb5HQ";
+import { decrypt } from "./crypto";
+import { getUrl, endpoint } from "./file";
+
 export const bucketName = "Nishsite";
 
-
-interface AWSCreds {
+interface EncriptedS3Creds {
   accessKeyId: string;
-  secretAccessKey: string;
-}
+  encryptedSecretAccessKey: string;
+};
 
-export async function getDecryptedCredentials(
-  password: string,
-): Promise<AWSCreds> {
+export async function getS3Client(password: string): Promise<S3Client> {
+  const storedCreds = localStorage.getItem("s3Creds");
+
+  if (storedCreds) {
+    return new S3Client({
+      region: "ap-south-1",
+      endpoint: `${endpoint}/s3`,
+      credentials: JSON.parse(storedCreds),
+    });
+  }
+
+  const res = await fetch(getUrl("s3.json"), { cache: "reload" });
+  if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+  const encriptedCreds: EncriptedS3Creds = await res.json();
+
   const secretAccessKey = await decrypt(
-    encryptedSecretAccessKey,
+    encriptedCreds.encryptedSecretAccessKey,
     password,
   );
-  return { accessKeyId, secretAccessKey };
-}
 
-export function getS3Client(creds: AWSCreds): S3Client {
+  const s3Creds: AwsCredentialIdentity = {
+    accessKeyId: encriptedCreds.accessKeyId,
+    secretAccessKey: secretAccessKey,
+  };
+
+  if (JSON.parse(localStorage.getItem("storeCreds") ?? "false")) {
+    localStorage.setItem("s3Creds", JSON.stringify(s3Creds));
+  }
+
   return new S3Client({
-    region: "ap-south-1", // Supabase region doesn't matter, just keep "auto"
-    endpoint:
-      "https://mayhiqsvljlyvismbpio.storage.supabase.co/storage/v1/s3",
-    credentials: {
-      accessKeyId: creds.accessKeyId,
-      secretAccessKey: creds.secretAccessKey,
-    }
+    region: "ap-south-1",
+    endpoint: `${endpoint}/s3`,
+    credentials: s3Creds
   });
 }

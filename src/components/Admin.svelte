@@ -1,26 +1,20 @@
 <script lang="ts">
-  import {
-    S3Client,
-    ListObjectsV2Command,
-    type _Object,
-    PutObjectCommand,
-  } from "@aws-sdk/client-s3";
-  import {
-    bucketName,
-    getS3Client,
-    getDecryptedCredentials,
-  } from "../assets/s3.ts";
+  import { S3Client, type _Object, PutObjectCommand } from "@aws-sdk/client-s3";
+  import { bucketName, getS3Client } from "../assets/s3.ts";
   import { fetchPanels, type Panel } from "../assets/panels.ts";
 
-  let password = "";
-  let accessKeyId = "";
-  let secretAccessKey = "";
-  let files: string[] = [];
-  let error: string | null = null;
-  let s3: S3Client | null = null;
+  let password = $state("");
+  let files: string[] = $state([]);
+  let error: string | null = $state(null);
+  let s3: S3Client | null = $state(null);
 
-  let panels: Panel[] = [];
-  let panelIds: string[] = []; // store truncated hashes
+  let panels: Panel[] = $state([]);
+  let panel_ids: string[] = $state([]);
+  $effect(() => {
+    Promise.all(panels.map((p) => hashPanel(p))).then((ids) => {
+      panel_ids = ids;
+    });
+  });
 
   async function hashPanel(panel: Panel): Promise<string> {
     const { price, ...rest } = panel;
@@ -33,13 +27,6 @@
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
     return hashHex.slice(0, 8); // first 8 chars
-  }
-
-  // Recompute hashes whenever panels array changes
-  $: if (panels.length > 0) {
-    (async () => {
-      panelIds = await Promise.all(panels.map((p) => hashPanel(p)));
-    })();
   }
 
   function addPanel() {
@@ -70,43 +57,17 @@
   async function handleDecrypt() {
     error = null;
     files = [];
-    accessKeyId = "";
-    secretAccessKey = "";
     panels = [];
-    panelIds = [];
+    panel_ids = [];
 
     try {
-      const creds = await getDecryptedCredentials(password);
-      if (!creds) {
-        error = "Wrong password or corrupted data";
-        return;
-      }
-
-      accessKeyId = creds.accessKeyId;
-      secretAccessKey = creds.secretAccessKey;
-      s3 = getS3Client(creds);
-
-      await listFiles();
+      s3 = await getS3Client(password);
 
       const fetchedPanels = await fetchPanels();
       console.log(fetchedPanels);
       panels = Object.values(fetchedPanels); // convert record to array
     } catch (err) {
       error = (err as Error).message;
-    }
-  }
-
-  async function listFiles() {
-    if (!s3) return;
-
-    try {
-      const command = new ListObjectsV2Command({ Bucket: bucketName });
-      const response = await s3.send(command);
-
-      files =
-        response.Contents?.map((obj: _Object) => obj.Key ?? "unknown") || [];
-    } catch (err) {
-      error = `Error listing files: ${(err as Error).message}`;
     }
   }
 
@@ -138,12 +99,40 @@
         }),
       );
 
+      await uploadTime();
       alert("Panels uploaded successfully!");
-      await listFiles();
 
       localStorage.setItem("panels", json);
     } catch (err) {
       error = `Upload failed: ${(err as Error).message}`;
+    }
+  }
+
+  async function uploadTime() {
+    if (!s3) {
+      error = "S3 client not initialized";
+      return;
+    }
+
+    try {
+      const unixTime = BigInt(Date.now());
+
+      // allocate 8 bytes
+      const buffer = new ArrayBuffer(8);
+      const view = new DataView(buffer);
+      view.setBigUint64(0, unixTime, false); // false = big endian
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: "time",
+          Body: new Uint8Array(buffer), // raw 8 bytes
+          ContentType: "application/octet-stream",
+          CacheControl: "no-cache",
+        }),
+      );
+    } catch (err) {
+      error = `Upload time failed: ${(err as Error).message}`;
     }
   }
 </script>
@@ -166,28 +155,15 @@
       bind:value={password}
       placeholder="Enter admin password"
     />
-    <button on:click={handleDecrypt}>Login</button>
+    <button onclick={handleDecrypt}>Login</button>
   </div>
 
-  {#if accessKeyId && secretAccessKey}
+  {#if s3 != null}
     <div class="creds-box">
       <h3>Decrypted AWS Credentials:</h3>
-      <p><strong>Access Key ID:</strong> {accessKeyId}</p>
-      <p><strong>Secret Access Key:</strong> {secretAccessKey}</p>
-
-      <h3>Files in bucket:</h3>
-      {#if files.length > 0}
-        <ul>
-          {#each files as file}
-            <li>{file}</li>
-          {/each}
-        </ul>
-      {:else}
-        <p>No files found in the bucket.</p>
-      {/if}
 
       <h3>Panels</h3>
-      <button on:click={addPanel} style="margin-bottom: 0.5rem;"
+      <button onclick={addPanel} style="margin-bottom: 0.5rem;"
         >Add Panel</button
       >
       {#if panels.length > 0}
@@ -204,7 +180,7 @@
           <tbody>
             {#each panels as panel, i}
               <tr>
-                <td>{panelIds[i]}</td>
+                <td>{panel_ids[i]}</td>
                 {#each Object.keys(panel) as key}
                   <td>
                     <input
@@ -216,13 +192,13 @@
                   </td>
                 {/each}
                 <td>
-                  <button on:click={() => deletePanel(i)}>Delete</button>
+                  <button onclick={() => deletePanel(i)}>Delete</button>
                 </td>
               </tr>
             {/each}
           </tbody>
         </table>
-        <button on:click={uploadPanels} style="margin-top: 1rem;">
+        <button onclick={uploadPanels} style="margin-top: 1rem;">
           Upload
         </button>
       {:else}
