@@ -1,26 +1,25 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchPanels, type Panel } from "../assets/panels";
+  import { fetchPanel, type Panel } from "../assets/panels";
 
   let panel: Panel | null = null;
   let error: string | null = null;
   let loading = true;
-
   onMount(async () => {
     const params = new URLSearchParams(window.location.search);
-    const id = params.get("id");
+    const idParam = params.get("id");
+    const id = idParam !== null ? Number(idParam) : NaN;
 
     try {
-      if (!id) {
-        error = "No panel id provided.";
+      if (idParam === null || isNaN(id)) {
+        error = "No valid panel id provided.";
         return;
       }
 
-      const panels = await fetchPanels();
-      if (!(id in panels)) {
+      panel = await fetchPanel(id);
+
+      if (panel == null) {
         error = `Panel with id "${id}" not found.`;
-      } else {
-        panel = panels[id];
       }
     } catch (err: any) {
       error = err.message;
@@ -38,7 +37,7 @@
   <h1>{panel.structure}</h1>
   <ul>
     <li>Watt: {panel.watt}</li>
-    <li>Battery: {panel.battary}</li>
+    <li>Battery: {panel.battery}</li>
     <li>Panel Cable: {panel.panel_cable}</li>
     <li>Wiring Cable: {panel.wiring_cable}</li>
     <li>Light: {panel.light}</li>

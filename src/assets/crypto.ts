@@ -108,6 +108,6 @@ export async function decrypt(token: string, password: string): Promise<string> 
     );
     return bufToStr(plainBuf);
   } catch {
-    throw new Error("Decryption failed: wrong password or corrupted data");
+    throw new Error("Wrong password");
   }
 }

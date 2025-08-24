@@ -1,33 +1,54 @@
 <script lang="ts">
-  import { getDecryptedCredentials ,} from "../assets/s3";
-  let password = $state("");
+  import { decrypt } from "../assets/crypto";
+  import { getUrl } from "../assets/file";
+  import type { EncriptedS3Creds } from "../assets/s3";
 
-  async function handleDecrypt() {
-    let accessKeyId = "";
-    let secretAccessKey = "";
-    let error = "";
+  // Get redirect directly from URL
+  let redirect = "/";
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    redirect = params.get("redirect") || "/";
+  }
+
+  let password = $state("");
+  let remember = $state(false);
+  let error = $state("");
+
+  async function handleLogin() {
+    const res = await fetch(getUrl("s3.json"), { cache: "reload" });
+    if (!res.ok) {
+      error = `Failed to fetch: ${res.status}`;
+      return;
+    }
+
+    const encriptedCreds: EncriptedS3Creds = await res.json();
 
     try {
-      const creds = await getDecryptedCredentials(password);
-      if (!creds) {
-        error = "Wrong password or corrupted data";
-        return;
+      const secretAccessKey = await decrypt(
+        encriptedCreds.encryptedSecretAccessKey,
+        password,
+      );
+
+      sessionStorage.setItem(
+        "s3Creds",
+        JSON.stringify({
+          accessKeyId: encriptedCreds.accessKeyId,
+          secretAccessKey: secretAccessKey,
+        }),
+      );
+
+      if (remember) {
+        localStorage.setItem("password", password);
       }
 
-      accessKeyId = creds.accessKeyId;
-      secretAccessKey = creds.secretAccessKey;
-      s3 = getS3Client(creds);
-
-      const fetchedPanels = await fetchPanels();
-      console.log(fetchedPanels);
-      panels = Object.values(fetchedPanels);
-    } catch (err) {
-      error = (err as Error).message;
+      window.location.href = redirect;
+    } catch (e) {
+      error = (e as Error).message || String(e);
     }
   }
 </script>
 
-<h1>Admin AWS Credentials Viewer</h1>
+<h1>Admin Login Panel</h1>
 
 <div>
   <input
@@ -35,5 +56,14 @@
     bind:value={password}
     placeholder="Enter admin password"
   />
-  <button onclick={handleDecrypt}>Login</button>
+  <button onclick={handleLogin}>Login</button>
 </div>
+
+<label>
+  <input type="checkbox" bind:checked={remember} />
+  Remember Me
+</label>
+
+{#if error}
+  <p class="error" style="color: red;">{error}</p>
+{/if}

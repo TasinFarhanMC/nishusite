@@ -1,215 +1,178 @@
 <script lang="ts">
-  import { S3Client, type _Object, PutObjectCommand } from "@aws-sdk/client-s3";
-  import { bucketName, getS3Client } from "../assets/s3.ts";
-  import { fetchPanels, type Panel } from "../assets/panels.ts";
+  import { S3Client } from "@aws-sdk/client-s3";
+  import {
+    createS3ClientFromPass,
+    getS3Client,
+    isLoggedIn,
+    uploadNumber,
+    uploadPanels as uploadPanelsToS3,
+  } from "../assets/s3.ts";
+  import { fetchPanels, type Panel } from "../assets/panels";
+  import { fetchNumber } from "../assets/file";
+  import { onMount } from "svelte";
 
-  let password = $state("");
-  let files: string[] = $state([]);
-  let error: string | null = $state(null);
-  let s3: S3Client | null = $state(null);
+  let error = $state("");
+  let s3: S3Client = $state(new S3Client());
 
-  let panels: Panel[] = $state([]);
-  let panel_ids: string[] = $state([]);
-  $effect(() => {
-    Promise.all(panels.map((p) => hashPanel(p))).then((ids) => {
-      panel_ids = ids;
-    });
-  });
+  let debugNumber: number | bigint = $state(0);
+  let debugPath: string = $state("");
 
-  async function hashPanel(panel: Panel): Promise<string> {
-    const { price, ...rest } = panel;
-    const str = JSON.stringify(rest);
-    const encoder = new TextEncoder();
-    const data = encoder.encode(str);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    return hashHex.slice(0, 8); // first 8 chars
-  }
+  let panelsRecord: Record<number, Panel> = $state({});
+  let nextId = 1;
 
   function addPanel() {
-    panels = [
-      ...panels,
-      {
-        watt: 0,
-        battery: 0,
-        panel_cable: 0,
-        wiring_cable: 0,
-        light: 0,
-        charger: 0,
-        structure: "product",
-        hour: 0,
-        extra_hour: 0,
-        dc_fan_small: 0,
-        dc_fan_table: 0,
-        dc_fan_stand: 0,
-        price: 0,
-      } as Panel,
-    ];
+    panelsRecord[nextId] = {
+      watt: 0,
+      battery: 0,
+      panel_cable: 0,
+      wiring_cable: 0,
+      light: 0,
+      charger: 0,
+      structure: "product",
+      hour: 0,
+      extra_hour: 0,
+      dc_fan_small: 0,
+      dc_fan_table: 0,
+      dc_fan_stand: 0,
+      price: 0,
+    };
+    nextId++;
   }
 
-  function deletePanel(index: number) {
-    panels = panels.filter((_, i) => i !== index);
+  function deletePanel(id: number) {
+    delete panelsRecord[id];
   }
 
-  async function handleDecrypt() {
-    error = null;
-    files = [];
-    panels = [];
-    panel_ids = [];
-
+  async function handleUploadPanels() {
     try {
-      s3 = await getS3Client(password);
-
-      const fetchedPanels = await fetchPanels();
-      console.log(fetchedPanels);
-      panels = Object.values(fetchedPanels); // convert record to array
-    } catch (err) {
-      error = (err as Error).message;
-    }
-  }
-
-  async function uploadPanels() {
-    if (!s3) {
-      error = "S3 client not initialized";
-      return;
-    }
-
-    try {
-      // Recompute hashes before upload
-      const panelIds = await Promise.all(panels.map((p) => hashPanel(p)));
-      const record: Record<string, Panel> = {};
-      for (let i = 0; i < panels.length; i++) {
-        record[panelIds[i]] = panels[i];
-      }
-
-      const json = JSON.stringify(record);
-      const key = "panels.json";
-
-      // Upload new panels.json
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: bucketName,
-          Key: key,
-          Body: json,
-          ContentType: "application/json",
-          CacheControl: "max-age=60", // cached for 30 seconds
-        }),
-      );
-
-      await uploadTime();
+      await uploadPanelsToS3(s3, panelsRecord);
+      await uploadNumber(s3, BigInt(nextId), "count");
+      await uploadNumber(s3, BigInt(Date.now()), "time");
       alert("Panels uploaded successfully!");
-
-      localStorage.setItem("panels", json);
     } catch (err) {
       error = `Upload failed: ${(err as Error).message}`;
     }
   }
 
-  async function uploadTime() {
-    if (!s3) {
-      error = "S3 client not initialized";
+  async function handleDebugUploadNumber() {
+    if (!debugPath) {
+      error = "Enter a path for debug upload";
       return;
     }
 
     try {
-      const unixTime = BigInt(Date.now());
-
-      // allocate 8 bytes
-      const buffer = new ArrayBuffer(8);
-      const view = new DataView(buffer);
-      view.setBigUint64(0, unixTime, false); // false = big endian
-
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: bucketName,
-          Key: "time",
-          Body: new Uint8Array(buffer), // raw 8 bytes
-          ContentType: "application/octet-stream",
-          CacheControl: "no-cache",
-        }),
-      );
+      await uploadNumber(s3, BigInt(debugNumber), debugPath);
+      alert(`Uploaded number ${debugNumber} to ${debugPath}`);
     } catch (err) {
-      error = `Upload time failed: ${(err as Error).message}`;
+      error = `Debug upload failed: ${(err as Error).message}`;
     }
   }
+
+  async function loadPanels() {
+    try {
+      const fetchedPanels = await fetchPanels();
+      panelsRecord = { ...fetchedPanels };
+
+      try {
+        const counter = await fetchNumber("count");
+        nextId = Number(counter);
+      } catch {
+        const keys = Object.keys(fetchedPanels).map(Number);
+        nextId = keys.length ? Math.max(...keys) + 1 : 1;
+      }
+    } catch (err) {
+      error = err as string;
+    }
+  }
+
+  onMount(async () => {
+    if (isLoggedIn()) {
+      s3 = getS3Client();
+      return loadPanels();
+    }
+
+    const password = localStorage.getItem("password");
+    if (password) {
+      try {
+        s3 = await createS3ClientFromPass(password);
+        return loadPanels();
+      } catch (e) {
+        if (e != "Wrong Password") {
+          error = e as string;
+          return;
+        }
+      }
+    }
+
+    const url = new URL("/login", window.location.origin);
+    url.searchParams.set("redirect", window.location.pathname);
+    window.location.href = url.toString();
+  });
 </script>
+
+{#if error}
+  <p class="error">{error}</p>
+{/if}
 
 <div style="margin-bottom: 1rem;">
   <a
     href="/"
     style="text-decoration: none; color: white; background: #007acc; padding: 0.5rem 1rem; border-radius: 4px;"
+    >Home</a
   >
-    Home
-  </a>
 </div>
 
 <div>
-  <h1>Admin AWS Credentials Viewer</h1>
+  <h1>Admin AWS Panels Manager</h1>
 
-  <div>
-    <input
-      type="password"
-      bind:value={password}
-      placeholder="Enter admin password"
-    />
-    <button onclick={handleDecrypt}>Login</button>
-  </div>
+  <div class="creds-box">
+    <h3>Panels</h3>
+    <button onclick={addPanel} style="margin-bottom: 0.5rem;">Add Panel</button>
 
-  {#if s3 != null}
-    <div class="creds-box">
-      <h3>Decrypted AWS Credentials:</h3>
-
-      <h3>Panels</h3>
-      <button onclick={addPanel} style="margin-bottom: 0.5rem;"
-        >Add Panel</button
-      >
-      {#if panels.length > 0}
-        <table border="1" cellpadding="4" cellspacing="0">
-          <thead>
+    {#if Object.keys(panelsRecord).length > 0}
+      <table border="1" cellpadding="4" cellspacing="0">
+        <thead>
+          <tr>
+            <th>ID</th>
+            {#each Object.keys(panelsRecord[Number(Object.keys(panelsRecord)[0])]) as field}<th
+                >{field}</th
+              >{/each}
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each Object.entries(panelsRecord) as [id, panel]}
             <tr>
-              <th>ID</th>
-              {#each Object.keys(panels[0]) as field}
-                <th>{field}</th>
-              {/each}
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each panels as panel, i}
-              <tr>
-                <td>{panel_ids[i]}</td>
-                {#each Object.keys(panel) as key}
-                  <td>
-                    <input
-                      type={typeof panel[key as keyof Panel] === "number"
-                        ? "number"
-                        : "text"}
-                      bind:value={panel[key as keyof Panel]}
-                    />
-                  </td>
-                {/each}
+              <td>{id}</td>
+              {#each Object.keys(panel) as key}
                 <td>
-                  <button onclick={() => deletePanel(i)}>Delete</button>
+                  <input
+                    type={typeof panel[key as keyof Panel] === "number"
+                      ? "number"
+                      : "text"}
+                    bind:value={panel[key as keyof Panel]}
+                  />
                 </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-        <button onclick={uploadPanels} style="margin-top: 1rem;">
-          Upload
-        </button>
-      {:else}
-        <p>No panel data found.</p>
-      {/if}
-    </div>
-  {/if}
-
-  {#if error}
-    <p class="error">{error}</p>
-  {/if}
+              {/each}
+              <td
+                ><button onclick={() => deletePanel(Number(id))}>Delete</button
+                ></td
+              >
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+      <button onclick={handleUploadPanels} style="margin-top: 1rem;"
+        >Upload Panels</button
+      >
+    {:else}
+      <p>No panel data found.</p>
+    {/if}
+  </div>
+  <h3>Debug Upload Number</h3>
+  <input type="number" bind:value={debugNumber} placeholder="Enter number" />
+  <input type="text" bind:value={debugPath} placeholder="S3 path/key" />
+  <button onclick={handleDebugUploadNumber}>Upload Number</button>
 </div>
 
 <style>
@@ -228,5 +191,19 @@
   }
   .error {
     color: red;
+  }
+  input {
+    margin-right: 0.5rem;
+    padding: 0.3rem;
+  }
+  button {
+    padding: 0.3rem 0.6rem;
+    background: #007acc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+  }
+  button:hover {
+    background: #005fa3;
   }
 </style>
