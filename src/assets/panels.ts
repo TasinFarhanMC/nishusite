@@ -65,7 +65,7 @@ export async function fetchPanels(time?: bigint): Promise<PanelMap> {
     }
   }
 
-  const res = await fetch(getUrl("panels.pb"), { cache: "reload" }); // fetch protobuf binary
+  const res = await fetch(getUrl("panels.pb"), { cache: "no-cache", headers: { "Accept": "application/octet-stream" } }); // fetch protobuf binary
   if (!res.ok) throw new Error(`Failed to fetch panels: ${res.status}`);
   const rawBuffer = new Uint8Array(await res.arrayBuffer());
   const panels = PanelMap.decode(rawBuffer);
