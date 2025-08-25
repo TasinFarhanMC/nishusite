@@ -10,7 +10,7 @@
     "astro": "astro",
     "deploy": "npm run gen:proto && astro build && wrangler deploy",
     "cf-typegen": "wrangler types",
-    "gen:proto": "mkdir -p src/assets/gen && protoc -I=src/protos --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=src/assets/gen --ts_proto_opt=esModuleInterop=true,outputServices=grpc-js,outputJsonMethods=true src/protos/*.proto",
+    "gen:proto": "mkdir -p src/assets/gen && bun run protoc -I=src/protos --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=src/assets/gen --ts_proto_opt=esModuleInterop=true,outputServices=grpc-js,outputJsonMethods=true src/protos/*.proto",
     "watch:proto": "chokidar 'src/protos/*.proto' -c 'bun run gen:proto --file {path}'"
   },
   "dependencies": {
