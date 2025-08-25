@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchPanels, type Panel } from "../assets/panels";
+  import { fetchPanels, type Panel, type PanelRecord } from "../assets/panels";
 
   let panels: [string, Panel][] = [];
   let error: string | null = null;
@@ -8,7 +8,7 @@
 
   onMount(async () => {
     try {
-      const data: Record<string, Panel> = await fetchPanels();
+      const data: PanelRecord = (await fetchPanels()).panels;
       panels = Object.entries(data);
     } catch (err: any) {
       error = err.message;

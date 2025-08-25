@@ -71,6 +71,13 @@ export async function encrypt(message: string, password: string): Promise<string
   return bufToBase64(packed.buffer);
 }
 
+export class PasswordError extends Error {
+  constructor(message = "Wrong Password") {
+    super(message);
+    this.name = "PasswordError";
+  }
+}
+
 // Decrypt string with password
 export async function decrypt(token: string, password: string): Promise<string> {
   const data = base64ToBuf(token);
@@ -108,6 +115,6 @@ export async function decrypt(token: string, password: string): Promise<string> 
     );
     return bufToStr(plainBuf);
   } catch {
-    throw new Error("Wrong password");
+    throw new PasswordError;
   }
 }

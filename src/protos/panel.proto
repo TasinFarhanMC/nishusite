@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+message Panel {
+  int32 watt = 1;
+  int32 battery = 2;
+  int32 panel_cable = 3;
+  int32 wiring_cable = 4;
+  int32 light = 5;
+  int32 charger = 6;
+  string structure = 7;
+  int32 hour = 8;
+  int32 extra_hour = 9;
+  int32 dc_fan_small = 10;
+  int32 dc_fan_table = 11;
+  int32 dc_fan_stand = 12;
+  int32 price = 13;
+}
+
+// Map of panel ID → Panel
+message PanelMap {
+  map<int32, Panel> panels = 1;
+}

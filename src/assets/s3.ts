@@ -2,8 +2,6 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { AwsCredentialIdentity } from "@aws-sdk/types"
 import { endpoint, getUrl } from "./file";
-import { panel_to_array, type Panel } from "./panels";
-import { encode } from "@msgpack/msgpack";
 import { decrypt } from "./crypto";
 
 export const bucketName = "Nishsite";
@@ -13,11 +11,7 @@ interface EncriptedS3Creds {
   encryptedSecretAccessKey: string;
 };
 
-export function isLoggedIn() {
-  return sessionStorage.getItem("s3Creds") != null;
-}
-
-export async function createS3ClientFromPass(password: string): Promise<S3Client> {
+export async function createS3creds(password: string) {
   const res = await fetch(getUrl("s3.json"), { cache: "reload" });
   if (!res.ok) throw new Error(`Unable to get s3.json: ${await res.text()}`);
 
@@ -32,7 +26,21 @@ export async function createS3ClientFromPass(password: string): Promise<S3Client
     secretAccessKey: secretAccessKey,
   };
 
-  localStorage.sessionStorage("s3Creds", JSON.stringify(s3Creds));
+  return s3Creds;
+}
+
+export async function getS3Client(): Promise<S3Client> {
+  let s3Creds = JSON.parse(sessionStorage.getItem("s3Creds") ?? "null");
+
+  if (!s3Creds) {
+    const password = localStorage.getItem("password");
+    if (!password) {
+      throw new Error("No Password Stored");
+    }
+
+    s3Creds = await createS3creds(password);
+    localStorage.sessionStorage("s3Creds", JSON.stringify(s3Creds));
+  }
 
   return new S3Client({
     region: "ap-south-1",
@@ -41,47 +49,18 @@ export async function createS3ClientFromPass(password: string): Promise<S3Client
   });
 }
 
-export function getS3Client(): S3Client {
-  return new S3Client({
-    region: "ap-south-1",
-    endpoint: `${endpoint}/s3`,
-    credentials: JSON.parse(sessionStorage.getItem("s3Creds") as string)
-  });
-}
-
-export async function uploadPanels(client: S3Client, panels: Record<number, Panel>) {
-  // Convert Record<number, Panel> -> [key, array][]
-  const panelsArray: [number, (number | string)[]][] = Object.entries(panels).map(
-    ([key, panel]) => [Number(key), panel_to_array(panel)]
-  );
-
-  // Encode to MessagePack
-  const packed = encode(panelsArray);
-
-  // Upload as panels.msgpack
-  const command = new PutObjectCommand({
-    Bucket: bucketName,
-    Key: "panels.msgpack",
-    Body: packed,
-  });
-
-  const result = await client.send(command);
-  return result;
-}
-
-export async function uploadNumber(client: S3Client, num: number | bigint, path: string) {
-  const bigNum = typeof num === "number" ? BigInt(num) : num;
-
-  const buffer = new ArrayBuffer(8);
-  new DataView(buffer).setBigUint64(0, bigNum, false); // big-endian
-
+export async function uploadBinary(client: S3Client, path: string, data: Uint8Array) {
   const command = new PutObjectCommand({
     Bucket: bucketName,
     Key: path,
-    Body: new Uint8Array(buffer),
-    ContentType: "application/octet-stream",
-    CacheControl: "no-cache",
+    Body: data,
   });
 
   return client.send(command);
+}
+
+export async function uploadNumber(client: S3Client, path: string, num: number | bigint) {
+  const bigNum = BigInt(num);
+  const buffer = new ArrayBuffer(8); new DataView(buffer).setBigUint64(0, bigNum, false); // big-endian
+  return uploadBinary(client, path, new Uint8Array(buffer));
 }

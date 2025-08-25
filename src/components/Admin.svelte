@@ -1,15 +1,11 @@
 <script lang="ts">
   import { S3Client } from "@aws-sdk/client-s3";
-  import {
-    createS3ClientFromPass,
-    getS3Client,
-    isLoggedIn,
-    uploadNumber,
-    uploadPanels as uploadPanelsToS3,
-  } from "../assets/s3.ts";
-  import { fetchPanels, type Panel } from "../assets/panels";
+  import { getS3Client, uploadBinary, uploadNumber } from "../assets/s3.ts";
+  import { fetchPanels, setInStore, type PanelRecord } from "../assets/panels";
   import { fetchNumber } from "../assets/file";
   import { onMount } from "svelte";
+  import { PasswordError } from "../assets/crypto.ts";
+  import { Panel, PanelMap } from "../assets/gen/panel.ts";
 
   let error = $state("");
   let s3: S3Client = $state(new S3Client());
@@ -17,37 +13,41 @@
   let debugNumber: number | bigint = $state(0);
   let debugPath: string = $state("");
 
-  let panelsRecord: Record<number, Panel> = $state({});
+  let panels: PanelRecord = $state({});
   let nextId = 1;
 
   function addPanel() {
-    panelsRecord[nextId] = {
+    panels[nextId] = {
       watt: 0,
       battery: 0,
-      panel_cable: 0,
-      wiring_cable: 0,
+      panelCable: 0,
+      wiringCable: 0,
       light: 0,
       charger: 0,
       structure: "product",
       hour: 0,
-      extra_hour: 0,
-      dc_fan_small: 0,
-      dc_fan_table: 0,
-      dc_fan_stand: 0,
+      extraHour: 0,
+      dcFanSmall: 0,
+      dcFanTable: 0,
+      dcFanStand: 0,
       price: 0,
     };
     nextId++;
   }
 
   function deletePanel(id: number) {
-    delete panelsRecord[id];
+    delete panels[id];
   }
 
   async function handleUploadPanels() {
     try {
-      await uploadPanelsToS3(s3, panelsRecord);
-      await uploadNumber(s3, BigInt(nextId), "count");
-      await uploadNumber(s3, BigInt(Date.now()), "time");
+      const data = PanelMap.encode({ panels }).finish();
+      await uploadBinary(s3, "panels.pb", data);
+      await uploadNumber(s3, "count", nextId);
+      await uploadNumber(s3, "time", Date.now());
+
+      await setInStore("panels", "data", data);
+      await setInStore("meta", "panelsTime", Date.now());
       alert("Panels uploaded successfully!");
     } catch (err) {
       error = `Upload failed: ${(err as Error).message}`;
@@ -61,7 +61,7 @@
     }
 
     try {
-      await uploadNumber(s3, BigInt(debugNumber), debugPath);
+      await uploadNumber(s3, debugPath, debugNumber);
       alert(`Uploaded number ${debugNumber} to ${debugPath}`);
     } catch (err) {
       error = `Debug upload failed: ${(err as Error).message}`;
@@ -70,14 +70,13 @@
 
   async function loadPanels() {
     try {
-      const fetchedPanels = await fetchPanels();
-      panelsRecord = { ...fetchedPanels };
+      panels = (await fetchPanels()).panels;
 
       try {
         const counter = await fetchNumber("count");
         nextId = Number(counter);
       } catch {
-        const keys = Object.keys(fetchedPanels).map(Number);
+        const keys = Object.keys(panels).map(Number);
         nextId = keys.length ? Math.max(...keys) + 1 : 1;
       }
     } catch (err) {
@@ -86,21 +85,13 @@
   }
 
   onMount(async () => {
-    if (isLoggedIn()) {
-      s3 = getS3Client();
+    try {
+      s3 = await getS3Client();
       return loadPanels();
-    }
-
-    const password = localStorage.getItem("password");
-    if (password) {
-      try {
-        s3 = await createS3ClientFromPass(password);
-        return loadPanels();
-      } catch (e) {
-        if (e != "Wrong Password") {
-          error = e as string;
-          return;
-        }
+    } catch (err) {
+      if (err instanceof PasswordError) {
+        error = err.message;
+        return;
       }
     }
 
@@ -129,19 +120,19 @@
     <h3>Panels</h3>
     <button onclick={addPanel} style="margin-bottom: 0.5rem;">Add Panel</button>
 
-    {#if Object.keys(panelsRecord).length > 0}
+    {#if Object.keys(panels).length > 0}
       <table border="1" cellpadding="4" cellspacing="0">
         <thead>
           <tr>
             <th>ID</th>
-            {#each Object.keys(panelsRecord[Number(Object.keys(panelsRecord)[0])]) as field}<th
+            {#each Object.keys(panels[Number(Object.keys(panels)[0])]) as field}<th
                 >{field}</th
               >{/each}
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {#each Object.entries(panelsRecord) as [id, panel]}
+          {#each Object.entries(panels) as [id, panel]}
             <tr>
               <td>{id}</td>
               {#each Object.keys(panel) as key}

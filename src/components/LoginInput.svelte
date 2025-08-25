@@ -1,9 +1,7 @@
 <script lang="ts">
-  import { decrypt } from "../assets/crypto";
   import { getUrl } from "../assets/file";
-  import type { EncriptedS3Creds } from "../assets/s3";
+  import { createS3creds } from "../assets/s3";
 
-  // Get redirect directly from URL
   let redirect = "/";
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
@@ -21,21 +19,9 @@
       return;
     }
 
-    const encriptedCreds: EncriptedS3Creds = await res.json();
-
     try {
-      const secretAccessKey = await decrypt(
-        encriptedCreds.encryptedSecretAccessKey,
-        password,
-      );
-
-      sessionStorage.setItem(
-        "s3Creds",
-        JSON.stringify({
-          accessKeyId: encriptedCreds.accessKeyId,
-          secretAccessKey: secretAccessKey,
-        }),
-      );
+      const creds = await createS3creds(password);
+      sessionStorage.setItem("s3Creds", JSON.stringify(creds));
 
       if (remember) {
         localStorage.setItem("password", password);
@@ -43,27 +29,26 @@
 
       window.location.href = redirect;
     } catch (e) {
-      error = (e as Error).message || String(e);
+      error = e as string;
     }
   }
 </script>
 
-<h1>Admin Login Panel</h1>
-
 <div>
   <input
+    class="password"
     type="password"
     bind:value={password}
     placeholder="Enter admin password"
   />
   <button onclick={handleLogin}>Login</button>
+
+  <label class="remember">
+    <input type="checkbox" bind:checked={remember} />
+    Remember Me
+  </label>
+
+  {#if error}
+    <p class="error" style="color: red;">{error}</p>
+  {/if}
 </div>
-
-<label>
-  <input type="checkbox" bind:checked={remember} />
-  Remember Me
-</label>
-
-{#if error}
-  <p class="error" style="color: red;">{error}</p>
-{/if}

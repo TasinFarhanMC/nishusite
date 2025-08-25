@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchPanel, type Panel } from "../assets/panels";
+  import { fetchPanel, Panel } from "../assets/panels";
 
-  let panel: Panel | null = null;
-  let error: string | null = null;
+  let panel: Panel | undefined = undefined;
+  let error: string | undefined = undefined;
   let loading = true;
   onMount(async () => {
     const params = new URLSearchParams(window.location.search);
@@ -38,15 +38,15 @@
   <ul>
     <li>Watt: {panel.watt}</li>
     <li>Battery: {panel.battery}</li>
-    <li>Panel Cable: {panel.panel_cable}</li>
-    <li>Wiring Cable: {panel.wiring_cable}</li>
+    <li>Panel Cable: {panel.panelCable}</li>
+    <li>Wiring Cable: {panel.wiringCable}</li>
     <li>Light: {panel.light}</li>
     <li>Charger: {panel.charger}</li>
-    <li>DC Fan Small: {panel.dc_fan_small}</li>
-    <li>DC Fan Table: {panel.dc_fan_table}</li>
-    <li>DC Fan Stand: {panel.dc_fan_stand}</li>
+    <li>DC Fan Small: {panel.dcFanSmall}</li>
+    <li>DC Fan Table: {panel.dcFanTable}</li>
+    <li>DC Fan Stand: {panel.dcFanStand}</li>
     <li>Hour: {panel.hour}</li>
-    <li>Extra Hour: {panel.extra_hour}</li>
+    <li>Extra Hour: {panel.extraHour}</li>
     <li>Price: ${panel.price}</li>
   </ul>
 {/if}
