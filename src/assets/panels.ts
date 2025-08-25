@@ -53,9 +53,9 @@ export async function setInStore(storeName: string, key: string, value: unknown)
   });
 }
 
-export async function fetchPanels(time?: bigint): Promise<PanelMap> {
-  const serverTime = time || await fetchNumber("time");
-  const storedTime = await getFromStore<bigint>("meta", "panelsTime") ?? BigInt(0);
+export async function fetchPanels(fetchedServerTime?: bigint, fetchPanelsTime?: bigint): Promise<PanelMap> {
+  const serverTime = fetchedServerTime ?? await fetchNumber("time");
+  const storedTime = fetchPanelsTime ?? await getFromStore<bigint>("meta", "panelsTime") ?? BigInt(0);
 
   if (storedTime >= serverTime) {
     const cachedData = await getFromStore<Uint8Array>("panels", "data");
@@ -78,18 +78,25 @@ export async function fetchPanels(time?: bigint): Promise<PanelMap> {
 }
 
 // --- Fetch a single panel by ID ---
+
 export async function fetchPanel(key: number): Promise<Panel | undefined> {
   const serverTime = await fetchNumber("time");
-  const storedTime = await getFromStore<bigint>("meta", "panelsTime");
-  const panelData = await getFromStore<Uint8Array>("panels", key.toString());
+  const panelsTime = await getFromStore<bigint>("meta", "panelsTime") ?? BigInt(0);
 
-  if (panelData && storedTime && storedTime >= serverTime) {
-    return Panel.decode(panelData);
+  // Try to get cached panel
+  const cached = await getFromStore<{ data: Uint8Array; time: bigint }>("panels", key.toString());
+
+  if (cached && cached.time >= panelsTime && cached.time >= serverTime) {
+    return Panel.decode(cached.data);
   }
 
-  const panel = (await fetchPanels(serverTime)).panels[key];
+  // If cache is missing or stale, fetch all panels
+  const panels = await fetchPanels(serverTime, panelsTime);
+  const panel = panels.panels[key];
+
   if (panel) {
-    await setInStore("panels", key.toString(), Panel.encode(panel).finish());
+    const encoded = Panel.encode(panel).finish();
+    await setInStore("panels", key.toString(), { data: encoded, time: serverTime });
   }
 
   return panel;

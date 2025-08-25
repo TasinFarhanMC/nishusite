@@ -44,10 +44,13 @@
       const data = PanelMap.encode({ panels }).finish();
       await uploadBinary(s3, "panels.pb", data);
       await uploadNumber(s3, "count", nextId);
-      await uploadNumber(s3, "time", Date.now());
+
+      const now = Date.now();
+
+      await uploadNumber(s3, "time", now);
 
       await setInStore("panels", "data", data);
-      await setInStore("meta", "panelsTime", Date.now());
+      await setInStore("meta", "panelsTime", now);
       alert("Panels uploaded successfully!");
     } catch (err) {
       error = `Upload failed: ${(err as Error).message}`;
